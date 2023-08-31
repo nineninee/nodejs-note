@@ -1,0 +1,11 @@
+{
+  "name": "my_project",
+  "version": "1.0.0",
+  "author": "nineninee",
+  "scripts": {
+    "test": "dir"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
