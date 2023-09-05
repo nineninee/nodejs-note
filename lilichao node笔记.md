@@ -3106,3 +3106,143 @@ app.post('/update_student', (req, res) => {
 })
 })
 ```
+
+### 24. Router
+随着项目体量变大，我们的代码中有很多的路由，有get路由，post路由，还有express的中间件，不方便代码管理。
+
+Router实际上是一个中间件，可以在中间件上去绑定各种路由以及其他的中间件。
+```js
+const express = require("express")
+const path = require("node:path")
+const fs = require('node:fs/promises')
+const app = express()
+
+app.set('view engine', 'ejs')
+app.set('views', path.resolve(__dirname, 'views'))
+app.use(express.static(path.resolve(__dirname, "./public")))
+app.use(express.urlencoded({ extended: true }))
+
+const router = express.Router()
+router.get('/hello', (req, res) => {
+  console.log('hi')
+  res.send("Hello, Router")
+})
+app.use(router)
+
+app.listen(3000, () => {
+  console.log('服务器已经启动')
+})
+```
+这里的好处就是app和router不是一个对象，那router就可以不用在index.js中去定义。
+
+
+#### 分离路由文件
+routes/user.js
+```js
+const express = require('express')
+
+const router = express.Router()
+router.get("/hello", (req, res) => {
+  res.send("hello, router")
+})
+
+module.exports = router
+```
+
+index.js
+```js
+const userRouter = require("./routes/user")
+const app = express()
+app.use(userRouter)
+```
+
+#### 不同路由模块之间的相同路由问题
+```js
+const express = require('express')
+
+const router = express.Router()
+router.get("/hello", (req, res) => {
+  res.send("hello, im user")
+})
+
+module.exports = router
+```
+
+```js
+const express = require('express')
+
+const router = express.Router()
+router.get("/hello", (req, res) => {
+  res.send("hello, im goods")
+})
+
+module.exports = router
+```
+
+```js
+const userRouter = require("./routes/user")
+const goodsRouter = require("./routes/goods")
+
+app.use('/user', userRouter)
+app.use('/goods', goodsRouter)
+
+app.use((req, res) => {
+  res.send('sorry, you are hacked')
+})
+```
+
+```
+http://localhost:3000/hello
+-->sorry, you are hacked
+
+http://localhost:3000/user/hello
+-->hello, im user
+
+http://localhost:3000/goods/hello
+-->hello, im goods
+```
+
+#### 处理存储文件的中间件
+我们使用router来实现上一节课练习的时候，会有多个路由有操作json文件的操作，我们可以封装这个方法，也可以配置一个中间件来处理。
+当add路由中的程序执行完以后，调用next进入下一个路由。
+```js
+routes/students.js
+router.get('/list', (req, res) => {
+  res.render(
+    "students",
+    { stus: STUDENTS_INFO }
+  )
+})
+
+router.post('/add', (req, res, next) => {
+  const id = STUDENTS_INFO.at(-1) ? STUDENTS_INFO.at(-1).id + 1 : 1
+
+  const newUser = {
+    id,
+    name: req.body.name,
+    age: +req.body.age,
+    sex: req.body.sex,
+    address: req.body.address,
+  }
+  STUDENTS_INFO.push(newUser)
+
+  // 调用next交由后续路由继续处理
+  next()
+})
+
+// 处理存储文件的中间件
+router.use((req, res) => {
+  fs.writeFile(path.resolve(__dirname, '../data/students.json'), JSON.stringify(STUDENTS_INFO))
+    .then(() => {
+      res.redirect('/students/list')
+    }).catch(() => {
+      res.send("处理失败")
+  })
+})
+
+module.exports = router
+```
+
+
+### 25. Cookie
+现在的登录形同虚设，
