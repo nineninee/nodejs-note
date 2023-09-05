@@ -3245,4 +3245,159 @@ module.exports = router
 
 
 ### 25. Cookie
-现在的登录形同虚设，
+先做了简单的登录功能。
+该功能实现了访问localhost:3000时自动跳转到登录页，登录成功后展示students的列表信息。
+
+但是现在的登录形同虚设，因为我们可以直接在地址栏中输入localhost:3000/students/list来访问学生信息。
+
+HTTP是一个无状态的协议，服务器无法区分请求是否发送自同一个客户端。
+
+#### 生成cookie
+cookie是http协议中用来解决无状态问题的技术。
+
+cookie本本质就是一个头
+- 服务器以响应头的形式将cookie发送给客户端
+- 客户端收到以后将其储存，并在下次向服务器发送请求时将其传回
+- 这样服务器就能根据cookie来识别客户端了
+
+cookie是服务器端生成的：
+```js
+app.get("/get-cookie", (req, res) => {
+  res.cookie("username", "admin")
+  res.send("cookie已经发送")
+})
+```
+
+![[服务器创造cookie.jpg]]
+
+
+往后浏览器发送的请求中都会携带cookie
+```js
+app.get("/hello-cookie", (req, res) => {
+  res.send("hello cookie")
+})
+```
+
+![[浏览器携带cookie.jpg]]
+
+#### 获取cookie
+`req.cookies`用来读取客户端发回的`cookie`
+
+需要安装中间件使得`express`可以解析`cookie`
+1. 安装cookie-parser: npm i cookie-parser
+2. 引入：const cookieParser = require("cookie-parser")
+3. 设置成中间件：app.use(cookieParser())
+
+
+#### 完善登录功能
+登录成功以后将用户名放入cookie
+因为登录成功以后会重定向到学生列表页，所以我们需要在这个路由中判断有么有cookie，有就显示，没有就重定向到/
+expires: new Date(2023, 10, 5)第二个参数是0-11
+```js
+app.post("/login", (req, res) => {
+  const { username, password } = req.body
+  if (username === "admin" && password === "123123") {
+    res.cookie("username", "admin")
+    res.redirect("students/list")
+  } else {
+    res.send("用户名或密码错误")
+  }
+})
+
+router.get('/list', (req, res) => {
+  if (req.cookies.username) {
+    res.render(
+      "students",
+      { stus: STUDENTS_INFO }
+    )
+  } else {
+    res.render("/")
+  }
+})
+
+```
+
+这不是最终形态，这只是初步的形态，cookie不是最终方案，并且还有问题。
+#### cookie介绍
+web1.0时代，浏览器只能看网页，就像看报刊一样；
+web2.0时代，浏览器需要根据不同的用户返回不同的内容，这时候cookie就取到了一定的作用。
+
+##### cookie有效期
+cookie是有有效期的，不会一直保存。
+
+默认情况下cookie的有效期就是一次会话（session）
+- 会话就是一次打开浏览器到关闭浏览器的过程
+
+设置cookie有效期：
+res.cookie的第三个参数是一个配置对象，可以配置cookie，其中expires和maxAge属性是有关cookie失效的。
+expires表示过期时间，expires的时间以格林尼治时间为准，比我们的设置的事件早八小时。
+maxAge表示cookie的有效时间，单位是毫秒
+查看他们的api：expressjs.com-->API参考手册4-->Response-->res.cokie()
+```js
+app.post("/login", (req, res) => {
+  const { username, password } = req.body
+  if (username === "admin" && password === "123123") {
+    res.cookie("username", "admin", {
+	  // expires: new Date() 立即失效
+      // expires: new Dae(2023, 10, 5) 2023-11-5失效
+      maxAge: 10000  // 十秒失效
+      // maxAge: 10000 立即失效
+      // maxAge: 1000 * 60 * 60 * 24 * 30 一个月失效
+    })
+    res.redirect("students/list")
+  } else {
+    res.send("用户名或密码错误")
+  }
+})
+```
+
+##### cookie & token
+cookie是存储数据的技术，token是一个令牌一个数据。
+
+##### cookie的domain
+给那个域名设置cookie，通常也不会给别的域名设置cookie，一般只给自己设置，因为涉及到跨域问题。
+
+##### 修改cookie
+cookie一旦发送就不能再修改了，因为他是存在浏览器上面的，服务器没办法删除浏览器上的内容；
+但是我们可以通过发送新的同名cookie来替换旧的cookie，从而达到修改的目的。
+```js
+app.get("/delete-cookie", (req, res) => {
+  res.cookie("username", "", {
+    maxAge: 0
+  })
+  res.send("cookie失效已设置为立即失效")
+})
+```
+
+##### cookie的缺点
+cookie是由服务器创建的，浏览器保存
+- 每次浏览器访问服务器的时候都需要将cookie发回，这就导致我们不能在cookie中存放较多的数据，因为如果cookie很大的话每次传输数据就很慢。
+- 并且cookie是直接存放在客户端，容易被篡改盗用。所以我们使用cookie一定不会再cookie中存储敏感数据。
+
+
+
+
+### 26. Session
+为了解决cookie的不足，我们希望可以这样：
+- 将用户信息统一存储在服务器中
+- 每个用户的数据都有一个对应的id
+- 我们只需要通过cookie将id发送给浏览器
+- 浏览器只需要每次访问时将id发回，即可读取到服务器中存储的数据
+这个技术我们称之为Session（会话）
+
+#### Session介绍
+- Session是服务器中的一个对象，这个对象用来存储用户的数据
+- 每一个session对象都有一个唯一的id，id会通过cookie的形式发送给客户端
+- 客户端每次访问时只需要将存储有id的cookie发回即可获取他在服务器中存储的数据。
+#### Session的使用
+在express中， 可以通过express-session组件来实现session功能。
+
+使用session：
+- 下载session： npm i express-session
+- 引入session：const session = require("express-session")
+- 设置session中间件：app.use(session())
+- 配置session
+	- 必写项secret：数据发送给客户端需要加密防止被人破解
+
+设置好session以后，就可以在req.session中查看session
+
