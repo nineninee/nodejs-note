@@ -1,0 +1,103 @@
+<!--
+ * @Author: hvvvvvv- 1264178545@qq.com
+ * @Date: 2023-09-02 10:42:43
+ * @LastEditors: hvvvvvv- 1264178545@qq.com
+ * @LastEditTime: 2023-09-05 12:02:33
+ * @FilePath: \node-learn\22_练习\views\students.ejs
+ * @Description: 
+ * 
+ * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
+-->
+<!--
+ * @Author: hvvvvvv- 1264178545@qq.com
+ * @Date: 2023-09-02 10:42:43
+ * @LastEditors: hvvvvvv- 1264178545@qq.com
+ * @LastEditTime: 2023-09-05 11:53:41
+ * @FilePath: \node-learn\22_练习\views\students.ejs
+ * @Description: 
+ * 
+ * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    table{
+      border-collapse: collapse;
+    }
+
+    th, td{
+      border: 1px #000 solid;
+      font-size: 20px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    caption{
+      font-size: 25px;
+      font-weight: bold;
+    }
+  </style>
+
+</head>
+<body>
+
+  <% if(stus && stus.length) { %>
+  <table>
+    <caption>学生列表</caption>
+    <thead>
+      <tr>
+        <th>学号</th>
+        <th>姓名</th>
+        <th>年龄</th>
+        <th>性别</th>
+        <th>地址</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for(const stu of stus){ %>
+        <tr>
+          <td><%=stu.id %></td>
+          <td><%=stu.name %></td>
+          <td><%=stu.age %></td>
+          <td><%=stu.sex %></td>
+          <td><%=stu.address %></td>
+          <td>
+            <a 
+              onclick="return confirm('确认删除么？')"
+              href="/delete?id=<%=stu.id %>">删除</a>
+            <a href="/to_update?id=<%=stu.id %>">修改</a>
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% }else { %>
+      <p>列表中没有学生数据</p>
+  <% } %>
+
+  <form action="/add_students" method="post">
+    <div>姓名：
+      <input type="text" name="name" />
+    </div>
+    <div>年龄：
+      <input type="number" name="age" max="150" min="0" /></div>
+    <div>性别：
+      <input type="radio" name="sex" value="男" />男
+      <input type="radio" name="sex" value="女" />女
+    </div>
+    <div>地址：
+      <input type="text" name="address" />
+    </div>
+    <div>
+      <button>添加</button>
+    </div>
+  </form>
+
+
+</body>
+</html>

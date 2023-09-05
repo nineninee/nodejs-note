@@ -24,12 +24,27 @@ app.get('/hello', (req, res) => {
   res.send('hello')
 })
 
-// app.get('/students', (req, res) => {
-//   res.render(
-//     "students",
-//     { name: 'sunwukong', age: 15 }
-//   )
-// })
+
+const STUDENTS_INFO = [
+  {
+    name: '孙悟空',
+    age: 18,
+    sex: '男',
+    address: '花果山'
+  },
+  {
+    name: '猪八戒',
+    age: 28,
+    sex: '男',
+    address: '高老庄'
+  },
+  {
+    name: '沙悟净',
+    age: 38,
+    sex: '男',
+    address: '流沙河'
+  },
+]
 
 app.get('/students', (req, res) => {
   res.render(
@@ -38,12 +53,6 @@ app.get('/students', (req, res) => {
   )
 })
 
-
-app.get('/set_name', (req, res) => {
-  let name = ''
-  name = req.query.name
-  res.render('students', {name})
-})
 
 app.use((req, res) => {
   res.send('<h1>你的请求已被外星人劫持</h1>')
