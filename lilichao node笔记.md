@@ -3389,6 +3389,10 @@ cookie是由服务器创建的，浏览器保存
 - Session是服务器中的一个对象，这个对象用来存储用户的数据
 - 每一个session对象都有一个唯一的id，id会通过cookie的形式发送给客户端
 - 客户端每次访问时只需要将存储有id的cookie发回即可获取他在服务器中存储的数据。
+
+session是服务器中的一个对象，这个对象用来存储用户的信息，每一个session都会有一个唯一的id，session创建后，id会以cookie的形式发送给浏览器，浏览器收到以后，每次访问都会将id发回，服务器就可以根据id找到对应的sess。
+
+id(cookie)---->session对象
 #### Session的使用
 在express中， 可以通过express-session组件来实现session功能。
 
@@ -3400,4 +3404,235 @@ cookie是由服务器创建的，浏览器保存
 	- 必写项secret：数据发送给客户端需要加密防止被人破解
 
 设置好session以后，就可以在req.session中查看session
+```js
+const session = require("express-session")
+app.use(session({
+  secret: 'hello'
+}))
+
+app.get("/set", (req, res) => {
+  console.log(req.session)
+  res.send("查看session")
+})
+
+输出：
+Session {
+  cookie: { path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
+}
+```
+
+请求中会有一个cookie，类似于token，对应服务器中的一个对象。
+![[sessionid.jpg]]
+
+注：一定是中间件都配置完成以后，才能看到打印的session
+
+##### 向session存取数据
+```js
+app.get("/set", (req, res) => {
+  req.session.username = "sunwukong"
+  res.send("查看session")
+})
+
+app.get("/get", (req, res) => {
+  const username = req.session.username
+  console.log(username)
+  res.send("读取session")
+})
+// 直接访问get输出undefined，访问set再访问get输出孙悟空
+```
+
+请求到达服务器，服务器会检查有没有session对应的cookie id
+- 有cookie那么服务器端就能根据cookie找到对应的数据对象，放到req中
+- 没有cookie服务器就会先生成对应的数据对象，然后将数据对象对应的id发送给浏览器，并将数据对象放到req中。
+
+
+#### Session有效期
+session默认有效期是一次会话
+
+session什么时候会失效
+第一种：浏览器的cookie没了
+第二种：服务器中的session对象没了
+
+express-session默认是将session存储到内存中的，所以服务器一旦重启session会自动重置；
+所以我们使用session通常会对session进行一个持久化的操作（写到文件或数据库）
+
+如何将session存储到文件中：
+需要引入一个中间件session-file-store
+
+#### 完善学生路由系列
+##### 需要登录才能查看学生列表页
+登录成功以后向session中存放loginUser
+```js
+app.post("/login", (req, res) => {
+  const { username, password } = req.body
+  if (username === "admin" && password === "123123") {
+    req.session.loginUser = username
+    res.redirect("students/list")
+  } else {
+    res.send("用户名或密码错误")
+  }
+})
+```
+
+访问学生list时检查session中是否有登录用户：
+```js
+router.get('/list', (req, res) => {
+  if (req.session.loginUser) {
+    res.render("students", {stus: STUDENTS_INFO})
+  } else {
+    res.redirect("/")
+  }
+})
+```
+
+##### 访问、添加、删除、更新都需要检查权限
+在访问所有路由之前先检查req中session是否有loginUser，有就继续匹配路由，没有就重定向到登录页。
+```js
+router.use((req, res, next) => {
+  if (req.session.loginUser) {
+    next()
+  } else {
+    res.redirect("/")
+  }
+})
+
+//  展示
+router.get('/list', (req, res) => {
+  res.render("students", { stus: STUDENTS_INFO })
+})
+```
+
+#### Session持久化存储
+如何将`session`存储到本地文件中
+- 需要引入一个中间件`session-file-store`
+
+API文档：
+npmjs.com/package/express-session 拉倒最底部是一些`express-session`的持久化存储方案；
+我们需要存储到文件中直接点击`session-file-store`
+
+使用步骤：
+- 安装：`npm i session-file-store`
+- 引入：
+	- `const session = require("express-session")`
+	- `let FileStore = require("session-file-store")(session)`
+- 配置为中间件：
+	- `app.use( session({ store: new FileStore({}),  secret: "hello"}) )`
+
+配置成功之前，如果我们重启服务器，session就会丢失，此时浏览器刷新页面需要重新登录。
+配置成功以后，如果我们重启服务器，session就不会丢失，此时浏览器刷新页面也不需要重新登录。
+
+配置成功以后，每次重新访问localhost:3000，我们当前项目的目录下都会有一个session文件夹，文件夹下的json文件就存放了我们的session。
+
+此时的session还存在两个问题：
+- 每次重新开启和localhost:3000的会话，都会增加一个存放session的json文件，这样会占据一定的空间
+- sessi中的数据都是明文保存的，如果session中存放了敏感数据，别人拿到了这个json文件就会有数据泄露的安全隐患。
+
+##### 配置session-file-store
+```js
+app.use(session({
+  store: new FileStore({
+	// path用来指定session文件夹的地址
+    path: path.resolve(__dirname, "./session"),
+    // 没有指定secret，session的json文件中数据都是明文存储，指定以后会自动加密
+    secret: "hello",
+    // session的有效时间 单位是秒 默认1个小时 一般不用设置  除非要实现指定时限有效的功能 但是这个功能要配合cookie配置项一起
+    ttl: 3600,
+    // 默认情况下，fileStore会每隔一小时，清除一次session对象, 单
+    // reapInterval用来指定清除session的间隔，单位是秒, 自定义的时候要注意配合ttl 
+    reapInterval: 10,
+  }),
+  secret: 'hello',
+  cookie: {
+    maxAge: 1000 * 3600
+  }
+}))
+```
+
+
+如果ttl设置为10秒，在浏览器端保持10秒内刷新一次就不会让跳转到登录页，但是如果十秒内没刷新，session就会失效，若再刷新浏览器，就会被重定向到登录页。
+ttl如果想配置长时效登录，要配合cookie配置项一起，但其实也不是。因为ttl是计算每次访问的最长的时间，长时间没访问就会失效；而cookie就是一个总的时间了。
+
+##### express-session自身的一些方法
+API：npmjs.com/package/express-session
+
+```js
+students.ejs
+<h1>当前用户： <%=username%></h1>
+<hr/>
+<a href="/logout">退出</a></a>
+
+student.js
+router.get('/list', (req, res) => {
+  res.render("students", { stus: STUDENTS_INFO, username: req.session.loginUser })
+})
+
+index.js
+app.get("/logout", (req, res) => {
+  // 使session失效
+  req.session.destroy(() => {
+    res.redirect("/")
+  })
+})
+```
+
+##### 修复bug
+问题描述：在students/list页面点击退出以后重新登陆，第一次登录成功以后还是回跳转到登录页，第二次登录成功以后才会跳转到students/list
+
+问题分析：
+```js
+idnex.js
+app.post("/login", (req, res) => {
+  const { username, password } = req.body
+  if (username === "admin" && password === "123123") {
+    req.session.loginUser = username
+    res.redirect("students/list")
+  } else {
+    res.send("用户名或密码错误")
+  }
+})
+
+students.js
+router.use((req, res, next) => {
+  if (req.session.loginUser) {
+    next()
+  } else {
+    res.redirect("/")
+  }
+})
+
+//  展示
+router.get('/list', (req, res) => {
+  res.render("students", { stus: STUDENTS_INFO, username: req.session.loginUser })
+})
+```
+首先分析/login路由，用户名密码正确以后将username放到session对象中，然后重定向到students/list，重定向到students/list等于又向students/list发了一次请求；
+向students/list发请求会先进行登录验证，先检查session中是否有loginUser，有就进入students/list路由，没有就重定向到登录页。说明session中没有loginUser。
+
+整个session我们注册了一个路由，请求到的时候会检查用户的cookie中有没有sessionid，因为我们用了session-file-store，也就是一个文件的session，所以如果有sessionid，就会从文件中把session的信息加载进来，然后设置给req对象。
+所以不管是/login还是/students/list都会经过这个路由，查看有无sessionid并调取session对象。
+```js
+app.use(session({
+  store: new FileStore({
+    path: path.resolve(__dirname, "./sessions"),
+  }),
+  secret: 'hello',
+}))
+```
+
+而在/login路由中，`req.session.loginUser = username`这一步只是将loginUser添加到内存的session中，而没有将值写入到文件中。
+所以这一步以后，向/students/list发请求时，又会经过session中间件的处理，这个中间件根据sessionid去文件中找session，但是此时的session不是最新的，没有读到session，就会被重定向到登录页
+
+所以`req.session.loginUser = username`之后，为了使得session可以立即存储，需要手动调用save，如果是文件save就会把session存到文件中，如果是数据库，save就会把session存到数据库中。
+```js
+app.post("/login", (req, res) => {
+  ...
+  if (username === "admin" && password === "123123") {
+    req.session.loginUser = username
+    req.session.save(() => {
+      res.redirect("students/list")
+    })
+  } 
+  //
+})
+```
 
