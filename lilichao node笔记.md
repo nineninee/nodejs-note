@@ -3636,3 +3636,179 @@ app.post("/login", (req, res) => {
 })
 ```
 
+
+
+### 27. csrf攻击
+csrf攻击：
+- 跨站请求伪造
+- 当我们登录以后，可以直接通过http://localhost:3000/students/delete?id=3来删除某个用户，而不需要点击删除按钮。
+
+此时如果有坏人想要删除数据，但是他又没有登录，他就想找一个已登录的人，通过他的电脑来发送请求。
+#### csrf攻击演示
+
+##### get请求
+我们新建一个网页huairen.html，网页中嵌入一张图片，src设置为删除用户的url
+```html
+<body>
+  <h1>这个网站中有很多你想要的东西</h1>
+  <img src="http://localhost:3000/students/delete?id=5" title="image"/>
+</body>
+```
+然后再同一个窗口中我们登录账号查看学生列表页信息，刷新huairen.html，会发现huairen.html中发送了请求，但是请求并没有携带cookie，这是因为：**现在大部分浏览器都不会在跨域的情况下自动发送cookie，这个设计就是为了防止csrf攻击**。无论是get请求，还是post请求，都会有csrf攻击的问题。
+![[edge跨域不携带cookie.jpg]]
+
+##### post请求
+我们在huairen.html中添加一个表单，并在打开网页的时候自动提交：
+```html
+<form action="http://localhost:3000/students/add" method="post" >
+	<div>
+	  <input type="text" name="name" value="孙悟空2" title="name"></input>
+	</div>
+	<div>
+	  <input type="text" name="age" value="77" title="age"></input>
+	</div>
+	<div>
+	  <input type="text" name="sex" value="男" title="sex"></input>
+	</div>
+	<div>
+	  <input type="text" name="address" value="宁波" title="address"></input>
+	</div>
+</form>
+
+<script>
+	document.forms[0].submit()
+</script>
+```
+然后再同一个窗口中我们登录账号查看学生列表页信息，刷新huairen.html，会发现huairen.html中发送了请求并且自动跳转到students/list，而且表格新增了数据。
+
+这是一种较为明显的攻击方式，因为huairen.html的内容一下子就变了，为了更隐蔽，我们可以在huairen.html中嵌入iframe，这样刷新网页以后还是保留原网页中的内容。但是刷新students/list可以发现数据已经被添加进来了。
+```html
+<iframe style="display: none;" name="hello"></iframe>
+
+<form action="http://localhost:3000/students/add" method="post" target="hello" >
+	<div>
+	  <input type="text" name="name" value="孙悟空2" title="name"></input>
+	</div>
+	<div>
+	  <input type="text" name="age" value="77" title="age"></input>
+	</div>
+	<div>
+	  <input type="text" name="sex" value="男" title="sex"></input>
+	</div>
+	<div>
+	  <input type="text" name="address" value="宁波" title="address"></input>
+	</div>
+</form>
+```
+注：这种方式在edge和chrome中是不可行的，因为这种代码已经臭街了。写了个ifram还设置成隐藏，然后form还往iframe跳，谁都知道这个有问题。但是上面那种明目张胆的方式是可行的。
+
+所以我们上网的时候：
+- 不要用不可靠的浏览器，比如ie。
+
+- 电子邮箱，广告，乱七八糟的广告不要瞎点，容易出问题。
+
+
+
+#### 处理csrf攻击
+
+##### 1. 使用referer头来检查请求的来源
+```js
+students.js
+router.use((req, res, next) => {
+  const referer = req.get("referer")
+  console.log('请求来自：', referer)
+  
+  if (req.session.loginUser) {
+    next()
+  } else {
+    res.redirect("/")
+  }
+})
+演示：
+浏览器url：  http://localhost:3000/students/list
+控制台输出： 请求来自： http://localhost:3000/
+
+浏览器url：   file:///D:/VSC/node-learn/28_csrf/huairen.html
+控制台输出：  请求来自： undefined
+
+把huairen.html放到public目录下以后
+浏览器url：   http://localhost:3000/huairen.html
+控制台输出：  请求来自： http://localhost:3000/huairen.html
+
+浏览器url：   http://127.0.0.1:3000/huairen.html
+控制台输出：  请求来自： http://127.0.0.1:3000/
+```
+
+```js
+router.use((req, res, next) => {
+  const referer = req.get("referer")
+
+  if (!referer || !referer.startsWith("http://localhost:3000/")) {
+    res.status(403).send("没有这个权限")
+    return
+  }
+  // ...
+})
+```
+![[坏人的referer没有权限.jpg]]
+
+
+##### 2. 使用验证码
+	验证是否是真人以及是否是本人
+	是这些方式中最安全的一种方式
+
+##### 3. 尽量使用post请求（结合token）
+get请求太容易伪装了
+
+- token（令牌）
+	- 可以在创建表单时随机生成一个令牌，然后将令牌存到session中，并通过模板发送给用户。
+	- 用户在提交表单时，必须将token发回，才可以进行后续操作。
+	- 这个token是随机生成的，不可预测的
+	- 可以使用uuid组件来生成组件
+		- npm i uuid
+		- const uuid = require("uuid").v4
+		- const csrfToken = uuid()
+
+这里以添加用户为例，当我们访问学生列表时下面会生成添加用户的表单，所以我们可以在students/list中生成csrfToken，然后将csrfToken放到session中，并发送给students/list对应的ejs模板
+```js
+router.get('/list', (req, res) => {
+  const csrfToken = uuid()
+  req.session.csrfToken = csrfToken
+  
+  req.session.save(() => {
+    res.render("students",
+      {
+        stus: STUDENTS_INFO,
+        username: req.session.loginUser,
+        csrfToken
+      }
+    )
+  })
+})
+```
+
+在模板中获取csrfToken
+```html
+  <form action="/students/add" method="post">
+    <input type="hidden" name="_csrf" value="<%=csrfToken %>" />
+    // ...
+  </form>
+```
+
+然后如果添加用户的话，表单就会将csrfToken一起提交，我们就需要在添加用户的路由中核对表单发过来的csrfToken和我们session中存放的csrfToken是否一致：
+```js
+router.post('/add', (req, res, next) => {
+  const csrfToken = req.body._csrf
+  const sessionToken = req.session.csrfToken
+  req.session.csrfToken = null
+
+  if (sessionToken === csrfToken) {
+    // 添加用户
+    req.session.save(() => {
+      next()
+    })
+  } else {
+    res.status(403).send("token错误")
+  }
+})
+```
