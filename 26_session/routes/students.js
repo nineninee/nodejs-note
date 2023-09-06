@@ -1,19 +1,30 @@
+/*
+ * @Author: hvvvvvv- 1264178545@qq.com
+ * @Date: 2023-09-05 22:52:03
+ * @LastEditors: hvvvvvv- 1264178545@qq.com
+ * @LastEditTime: 2023-09-06 10:59:43
+ * @FilePath: \node-learn\26_session\routes\students.js
+ * @Description: 
+ * 
+ * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
+ */
 const express = require('express')
 const fs = require("node:fs/promises")
 const path = require("node:path")
 const router = express.Router()
 let STUDENTS_INFO = require('../data/students.json')
 
-//  展示
-router.get('/list', (req, res) => {
-  if (req.cookies.username) {
-    res.render(
-      "students",
-      { stus: STUDENTS_INFO }
-    )
+router.use((req, res, next) => {
+  if (req.session.loginUser) {
+    next()
   } else {
     res.redirect("/")
   }
+})
+
+//  展示
+router.get('/list', (req, res) => {
+  res.render("students", { stus: STUDENTS_INFO, username: req.session.loginUser })
 })
 
 // 添加

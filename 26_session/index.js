@@ -2,8 +2,8 @@
  * @Author: hvvvvvv- 1264178545@qq.com
  * @Date: 2023-09-02 10:42:37
  * @LastEditors: hvvvvvv- 1264178545@qq.com
- * @LastEditTime: 2023-09-05 21:08:53
- * @FilePath: \node-learn\25_cookie\index.js
+ * @LastEditTime: 2023-09-06 11:45:55
+ * @FilePath: \node-learn\26_session\index.js
  * @Description:  = reuqi
  * 
  * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
@@ -12,8 +12,8 @@ const express = require("express")
 const path = require("node:path")
 const fs = require('node:fs/promises')
 const cookieParser = require("cookie-parser")
-const userRouter = require("./routes/user")
-const goodsRouter = require("./routes/goods")
+const session = require("express-session")
+let FileStore = require("session-file-store")(session)
 
 const app = express()
 
@@ -22,6 +22,20 @@ app.set('views', path.resolve(__dirname, 'views'))
 app.use(express.static(path.resolve(__dirname, "./public")))
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
+app.use(session({
+  store: new FileStore({
+    path: path.resolve(__dirname, "./sessions"),
+    secret: "hello",
+    ttl: 10,
+    reapInterval: 10,
+  }),
+  secret: 'hello',
+  // cookie: {
+  //   maxAge: 1000 * 3600
+  // }
+}))
+
+app.use('/students', require('./routes/students'))
 
 app.get("/", (req, res) => {
   res.render("login")
@@ -30,38 +44,31 @@ app.get("/", (req, res) => {
 app.post("/login", (req, res) => {
   const { username, password } = req.body
   if (username === "admin" && password === "123123") {
-    res.cookie("username", "admin", {
-      // expires: new Date(2023, 10, 5)
-      maxAge: 10000
-      // maxAge: 1000 * 60 * 60 * 24 * 30
+    req.session.loginUser = username
+    req.session.save(() => {
+      res.redirect("students/list")
     })
-    res.redirect("students/list")
   } else {
     res.send("用户名或密码错误")
   }
 })
 
-// app.use('/user', userRouter)
-// app.use('/goods', goodsRouter)
-app.use('/students', require('./routes/students'))
-
-app.get("/get-cookie", (req, res) => {
-  res.cookie("username", "admin", {
-    expires: new Date(2023, 10, 5)
+app.get("/logout", (req, res) => {
+  // 使session失效
+  req.session.destroy(() => {
+    res.redirect("/")
   })
-  res.send("cookie已经发送")
 })
 
-app.get("/hello-cookie", (req, res) => {
-  console.log(req.cookies)
-  res.send("hello cookie")
+app.get("/set", (req, res) => {
+  req.session.username = "sunwukong"
+  res.send("查看session")
 })
 
-app.get("/delete-cookie", (req, res) => {
-  res.cookie("username", "", {
-    maxAge: 0
-  })
-  res.send("cookie失效已设置为立即失效")
+app.get("/get", (req, res) => {
+  const username = req.session.username
+  console.log(username)
+  res.send("读取session")
 })
 
 app.use((req, res) => {

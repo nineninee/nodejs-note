@@ -2,8 +2,8 @@
  * @Author: hvvvvvv- 1264178545@qq.com
  * @Date: 2023-09-02 10:42:43
  * @LastEditors: hvvvvvv- 1264178545@qq.com
- * @LastEditTime: 2023-09-05 14:53:45
- * @FilePath: \node-learn\24_router\views\students.ejs
+ * @LastEditTime: 2023-09-06 10:56:29
+ * @FilePath: \node-learn\26_session\views\students.ejs
  * @Description: 
  * 
  * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
@@ -44,6 +44,9 @@
 
 </head>
 <body>
+  <h1>当前用户： <%=username%></h1>
+  <hr/>
+  <a href="/logout">退出</a></a>
 
   <% if(stus && stus.length) { %>
   <table>
